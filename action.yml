@@ -1,0 +1,13 @@
+name: golangci-lint
+description: build static sites with zola
+author: wass3r
+branding:
+  icon: book
+  color: blue
+inputs:
+  zola_version:
+    description: zola version
+    default: v0.10.1
+runs:
+  using: docker
+  image: Dockerfile
