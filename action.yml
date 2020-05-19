@@ -1,4 +1,4 @@
-name: golangci-lint
+name: actions-zola
 description: build static sites with zola
 author: wass3r
 branding:
