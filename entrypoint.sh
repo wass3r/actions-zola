@@ -1,4 +1,3 @@
-
 #!/bin/sh -l
 
 ZOLA_VERSION=$1
