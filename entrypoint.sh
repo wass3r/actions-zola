@@ -1,10 +1,9 @@
 #!/bin/sh -l
 
-ZOLA_VERSION=$1
+echo "downloading zola version: $INPUT_ZOLA_VERSION"
+wget -q -O - \
+    "https://github.com/getzola/zola/releases/download/${INPUT_ZOLA_VERSION}/zola-${INPUT_ZOLA_VERSION}-x86_64-unknown-linux-gnu.tar.gz" \
+    | tar xzf - -C /usr/local/bin
 
-cd /actions-zola
-echo "creating zola image using zola version: $ZOLA_VERSION"
-
-# here we can make the construction of the image as customizable as we need
-# and if we need parameterizable values it is a matter of sending them as inputs
-docker build -t actions-zola --build-arg zola_version="$ZOLA_VERSION" . && docker run actions-zola
+echo "building site"
+zola build
