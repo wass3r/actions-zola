@@ -7,7 +7,7 @@ branding:
 inputs:
   zola_version:
     description: zola version
-    default: v0.10.1
+    default: v0.11.0
 runs:
   using: docker
   image: Dockerfile
