@@ -150,16 +150,29 @@ runs:
         echo ""
         echo "🔐 Verifying SHA256 checksum..."
 
-        # Get expected SHA256 from GitHub API
-        EXPECTED_SHA=$(curl -sSfL \
+        # Get asset API URL and then fetch digest
+        ASSET_API_URL=$(curl -sSfL \
           -H "Accept: application/vnd.github+json" \
           -H "X-GitHub-Api-Version: 2022-11-28" \
           "https://api.github.com/repos/getzola/zola/releases/tags/v${VERSION}" | \
-          jq -r ".assets[] | select(.name == \"${ARCHIVE}\") | .digest" | \
+          jq -r ".assets[] | select(.name == \"${ARCHIVE}\") | .url")
+
+        if [ -z "$ASSET_API_URL" ] || [ "$ASSET_API_URL" = "null" ]; then
+          echo "::error::Failed to find asset ${ARCHIVE} in release"
+          rm "/tmp/${ARCHIVE}"
+          exit 1
+        fi
+
+        EXPECTED_SHA=$(curl -sSfL \
+          -H "Accept: application/vnd.github+json" \
+          -H "X-GitHub-Api-Version: 2022-11-28" \
+          "$ASSET_API_URL" | \
+          jq -r '.digest // empty' | \
           sed 's/sha256://')
 
         if [ -z "$EXPECTED_SHA" ]; then
-          echo "::error::Failed to retrieve SHA256 from GitHub API"
+          echo "::error::Failed to retrieve SHA256 digest from GitHub API"
+          echo "::error::Asset URL: $ASSET_API_URL"
           rm "/tmp/${ARCHIVE}"
           exit 1
         fi
