@@ -24,6 +24,10 @@ inputs:
     description: "Include drafts when building (true/false)"
     required: false
     default: "false"
+  gh_token:
+    description: "GitHub token for attestation verification and API access"
+    required: false
+    default: ${{ github.token }}
 
 runs:
   using: composite
@@ -64,6 +68,8 @@ runs:
 
     - name: Verify gh CLI availability
       shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.gh_token }}
       run: |
         if ! command -v gh &> /dev/null; then
           echo "::error::GitHub CLI (gh) is required for attestation verification"
@@ -117,6 +123,7 @@ runs:
       env:
         ZOLA_VERSION: ${{ inputs.zola_version }}
         TARGET: ${{ steps.platform.outputs.target }}
+        GH_TOKEN: ${{ inputs.gh_token }}
       run: |
         set -e
 
