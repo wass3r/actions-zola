@@ -115,7 +115,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         with:
           root: test-site
-          output_dir: dist
+          output_dir: test-site/dist
 
       - name: Verify custom output directory
         run: |
