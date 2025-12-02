@@ -29,8 +29,6 @@ jobs:
         id: test
         continue-on-error: true
         uses: ./
-        env:
-          GH_TOKEN: ${{ github.token }}
         with:
           zola_version: ${{ matrix.version }}
           root: test-site
@@ -68,8 +66,6 @@ jobs:
 
       - name: Build test site
         uses: ./
-        env:
-          GH_TOKEN: ${{ github.token }}
         with:
           zola_version: ${{ matrix.zola_version }}
           root: test-site
@@ -103,16 +99,12 @@ jobs:
 
       - name: Test with custom base_url
         uses: ./
-        env:
-          GH_TOKEN: ${{ github.token }}
         with:
           root: test-site
           base_url: https://example.com
 
       - name: Test with custom output_dir
         uses: ./
-        env:
-          GH_TOKEN: ${{ github.token }}
         with:
           root: test-site
           output_dir: test-site/dist
@@ -127,8 +119,6 @@ jobs:
 
       - name: Test with drafts enabled
         uses: ./
-        env:
-          GH_TOKEN: ${{ github.token }}
         with:
           root: test-site
           drafts: true
@@ -143,15 +133,11 @@ jobs:
 
       - name: First build (cache miss)
         uses: ./
-        env:
-          GH_TOKEN: ${{ github.token }}
         with:
           root: test-site
 
       - name: Second build (cache hit)
         uses: ./
-        env:
-          GH_TOKEN: ${{ github.token }}
         with:
           root: test-site
 
