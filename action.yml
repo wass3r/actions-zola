@@ -234,12 +234,17 @@ runs:
       shell: bash
       working-directory: ${{ github.workspace }}
       run: |
-        ARGS=("build")
+        ARGS=()
 
+        # Global flags come before the command
         if [ -n "${{ inputs.root }}" ] && [ "${{ inputs.root }}" != "." ]; then
           ARGS+=("--root" "${{ inputs.root }}")
         fi
 
+        # Command
+        ARGS+=("build")
+
+        # Command-specific flags come after
         if [ -n "${{ inputs.base_url }}" ]; then
           ARGS+=("--base-url" "${{ inputs.base_url }}")
         fi
