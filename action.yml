@@ -146,12 +146,19 @@ runs:
           exit 1
         fi
 
-        # Step 2: Verify SHA256 checksum (defense in depth)
+        # Step 2: Verify SHA256 checksum (defense in depth, when available)
         echo ""
         echo "🔐 Verifying SHA256 checksum..."
 
+        # Set up auth header if GH_TOKEN is available
+        AUTH_HEADER=""
+        if [ -n "$GH_TOKEN" ]; then
+          AUTH_HEADER="Authorization: Bearer $GH_TOKEN"
+        fi
+
         # Get asset API URL and then fetch digest
         ASSET_API_URL=$(curl -sSfL \
+          ${AUTH_HEADER:+-H "$AUTH_HEADER"} \
           -H "Accept: application/vnd.github+json" \
           -H "X-GitHub-Api-Version: 2022-11-28" \
           "https://api.github.com/repos/getzola/zola/releases/tags/v${VERSION}" | \
@@ -164,37 +171,37 @@ runs:
         fi
 
         EXPECTED_SHA=$(curl -sSfL \
+          ${AUTH_HEADER:+-H "$AUTH_HEADER"} \
           -H "Accept: application/vnd.github+json" \
           -H "X-GitHub-Api-Version: 2022-11-28" \
           "$ASSET_API_URL" | \
           jq -r '.digest // empty' | \
           sed 's/sha256://')
 
-        if [ -z "$EXPECTED_SHA" ]; then
-          echo "::error::Failed to retrieve SHA256 digest from GitHub API"
-          echo "::error::Asset URL: $ASSET_API_URL"
-          rm "/tmp/${ARCHIVE}"
-          exit 1
-        fi
+        if [ -n "$EXPECTED_SHA" ]; then
+          # Digest available - verify it
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            ACTUAL_SHA=$(shasum -a 256 "/tmp/${ARCHIVE}" | awk '{print $1}')
+          else
+            ACTUAL_SHA=$(sha256sum "/tmp/${ARCHIVE}" | awk '{print $1}')
+          fi
 
-        # Calculate actual SHA256
-        if [ "$RUNNER_OS" = "macOS" ]; then
-          ACTUAL_SHA=$(shasum -a 256 "/tmp/${ARCHIVE}" | awk '{print $1}')
+          if [ "$EXPECTED_SHA" != "$ACTUAL_SHA" ]; then
+            echo "::error::❌ SHA256 checksum verification FAILED"
+            echo "::error::Expected: $EXPECTED_SHA"
+            echo "::error::Got:      $ACTUAL_SHA"
+            rm "/tmp/${ARCHIVE}"
+            exit 1
+          fi
+
+          echo "✅ SHA256 checksum verified"
+          echo "   Expected: $EXPECTED_SHA"
+          echo "   Actual:   $ACTUAL_SHA"
         else
-          ACTUAL_SHA=$(sha256sum "/tmp/${ARCHIVE}" | awk '{print $1}')
+          # Digest not available (releases before June 2025)
+          echo "⚠️  SHA256 digest not available in GitHub API for this release"
+          echo "   Relying on Sigstore attestation for verification"
         fi
-
-        if [ "$EXPECTED_SHA" != "$ACTUAL_SHA" ]; then
-          echo "::error::❌ SHA256 checksum verification FAILED"
-          echo "::error::Expected: $EXPECTED_SHA"
-          echo "::error::Got:      $ACTUAL_SHA"
-          rm "/tmp/${ARCHIVE}"
-          exit 1
-        fi
-
-        echo "✅ SHA256 checksum verified"
-        echo "   Expected: $EXPECTED_SHA"
-        echo "   Actual:   $ACTUAL_SHA"
 
         # Extract binary
         echo ""
