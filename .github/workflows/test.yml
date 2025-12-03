@@ -126,20 +126,51 @@ jobs:
   test-caching:
     name: Test binary caching
     runs-on: ubuntu-latest
+
+    permissions:
+      actions: write
+
+    env:
+      ZOLA_VERSION: v0.21.0
+
     steps:
       - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
         with:
           persist-credentials: false
 
-      - name: Clear any existing Zola cache for this test run
+      - name: Delete existing cache if present
+        continue-on-error: true
         run: |
-          rm -rf ~/.zola/bin
-          echo "Cleared any existing Zola installation"
+          # Detect platform for cache key
+          case "$RUNNER_OS" in
+            Linux)
+              TARGET="x86_64-unknown-linux-gnu"
+              ;;
+            macOS)
+              if [ "$(uname -m)" = "arm64" ]; then
+                TARGET="aarch64-apple-darwin"
+              else
+                TARGET="x86_64-apple-darwin"
+              fi
+              ;;
+            Windows)
+              TARGET="x86_64-pc-windows-msvc"
+              ;;
+          esac
 
-      - name: First build (should download and verify)
+          # Use default version from action.yml
+          CACHE_KEY="zola-${ZOLA_VERSION}-${TARGET}-v2-verified"
+          echo "Attempting to delete cache: $CACHE_KEY"
+
+          gh cache delete "$CACHE_KEY" --repo ${{ github.repository }} || echo "Cache not found or already deleted"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: First build (cache miss expected)
         uses: ./
         with:
           root: test-site
+          zola_version: ${ZOLA_VERSION}
 
       - name: Verify binary was installed
         run: |
@@ -149,10 +180,11 @@ jobs:
           fi
           echo "✅ Zola binary installed"
 
-      - name: Second build (should use cached binary)
+      - name: Second build (cache hit expected)
         uses: ./
         with:
           root: test-site
+          zola_version: ${ZOLA_VERSION}
 
       - name: Verify Zola still works after cache
         run: |
