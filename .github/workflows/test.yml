@@ -140,6 +140,9 @@ jobs:
 
       - name: Delete existing cache if present
         continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ZOLA_VERSION: ${{ env.ZOLA_VERSION }}
         run: |
           # Detect platform for cache key
           case "$RUNNER_OS" in
@@ -163,14 +166,12 @@ jobs:
           echo "Attempting to delete cache: $CACHE_KEY"
 
           gh cache delete "$CACHE_KEY" --repo ${{ github.repository }} || echo "Cache not found or already deleted"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: First build (cache miss expected)
         uses: ./
         with:
           root: test-site
-          zola_version: ${ZOLA_VERSION}
+          zola_version: ${{ env.ZOLA_VERSION }}
 
       - name: Verify binary was installed
         run: |
@@ -184,7 +185,7 @@ jobs:
         uses: ./
         with:
           root: test-site
-          zola_version: ${ZOLA_VERSION}
+          zola_version: ${{ env.ZOLA_VERSION }}
 
       - name: Verify Zola still works after cache
         run: |
