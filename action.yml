@@ -1,13 +1,270 @@
 name: actions-zola
-description: build static sites with zola
+description: Build static sites with Zola (secure, verified binaries only)
 author: wass3r
 branding:
   icon: book
   color: blue
+
 inputs:
   zola_version:
-    description: zola version
-    default: v0.11.0
+    description: "Zola version to use (v0.20.0 or later required)"
+    required: false
+    default: "v0.21.0"
+  root:
+    description: "Root directory for the Zola project"
+    required: false
+    default: "."
+  base_url:
+    description: "Base URL to use for the site"
+    required: false
+  output_dir:
+    description: "Output directory for the built site"
+    required: false
+  drafts:
+    description: "Include drafts when building (true/false)"
+    required: false
+    default: "false"
+  gh_token:
+    description: "GitHub token for attestation verification and API access"
+    required: false
+    default: ${{ github.token }}
+
 runs:
-  using: docker
-  image: Dockerfile
+  using: composite
+  steps:
+    - name: Validate version requirement
+      shell: bash
+      env:
+        ZOLA_VERSION: ${{ inputs.zola_version }}
+      run: |
+        VERSION="${ZOLA_VERSION#v}"
+
+        # Parse semantic version components
+        IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+
+        # Remove any pre-release or build metadata from PATCH
+        PATCH="${PATCH%%-*}"
+        PATCH="${PATCH%%+*}"
+
+        # Check minimum version (v0.20.0)
+        MIN_MAJOR=0
+        MIN_MINOR=20
+        MIN_PATCH=0
+
+        if [ "$MAJOR" -lt "$MIN_MAJOR" ] || \
+           { [ "$MAJOR" -eq "$MIN_MAJOR" ] && [ "$MINOR" -lt "$MIN_MINOR" ]; } || \
+           { [ "$MAJOR" -eq "$MIN_MAJOR" ] && [ "$MINOR" -eq "$MIN_MINOR" ] && [ "$PATCH" -lt "$MIN_PATCH" ]; }; then
+          echo "::error::This action requires Zola v0.20.0 or later for attestation support"
+          echo "::error::Requested version: v$VERSION"
+          echo "::error::Minimum version: v0.20.0"
+          echo "::error::"
+          echo "::error::Options:"
+          echo "::error::  1. Upgrade to Zola v0.21.0 (recommended)"
+          echo "::error::  2. Use wass3r/actions-zola@v1 for older Zola versions"
+          exit 1
+        fi
+
+        echo "✅ Version v$VERSION meets minimum requirement (v0.20.0+)"
+
+    - name: Verify gh CLI availability
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.gh_token }}
+      run: |
+        if ! command -v gh &> /dev/null; then
+          echo "::error::GitHub CLI (gh) is required for attestation verification"
+          echo "::error::"
+          echo "::error::GitHub-hosted runners include gh by default."
+          echo "::error::For self-hosted runners, install gh:"
+          echo "::error::  https://github.com/cli/cli#installation"
+          exit 1
+        fi
+
+        echo "✅ GitHub CLI found: $(gh --version | head -n1)"
+
+    - name: Detect platform
+      id: platform
+      shell: bash
+      run: |
+        case "$RUNNER_OS" in
+          Linux)
+            if [ "$(uname -m)" = "aarch64" ]; then
+              echo "target=aarch64-unknown-linux-gnu" >> $GITHUB_OUTPUT
+            else
+              echo "target=x86_64-unknown-linux-gnu" >> $GITHUB_OUTPUT
+            fi
+            ;;
+          macOS)
+            if [ "$(uname -m)" = "arm64" ]; then
+              echo "target=aarch64-apple-darwin" >> $GITHUB_OUTPUT
+            else
+              echo "target=x86_64-apple-darwin" >> $GITHUB_OUTPUT
+            fi
+            ;;
+          Windows)
+            echo "target=x86_64-pc-windows-msvc" >> $GITHUB_OUTPUT
+            ;;
+          *)
+            echo "::error::Unsupported OS: $RUNNER_OS"
+            exit 1
+            ;;
+        esac
+
+    - name: Cache Zola binary
+      id: cache-zola
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      with:
+        path: ~/.zola/bin
+        key: zola-${{ inputs.zola_version }}-${{ steps.platform.outputs.target }}-v2-verified
+
+    - name: Download and verify Zola
+      if: steps.cache-zola.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        ZOLA_VERSION: ${{ inputs.zola_version }}
+        TARGET: ${{ steps.platform.outputs.target }}
+        GH_TOKEN: ${{ inputs.gh_token }}
+      run: |
+        set -e
+
+        VERSION="${ZOLA_VERSION#v}"
+
+        # Construct download URL
+        if [ "$RUNNER_OS" = "Windows" ]; then
+          ARCHIVE="zola-v${VERSION}-${TARGET}.zip"
+        else
+          ARCHIVE="zola-v${VERSION}-${TARGET}.tar.gz"
+        fi
+
+        URL="https://github.com/getzola/zola/releases/download/v${VERSION}/${ARCHIVE}"
+
+        echo "📦 Downloading Zola v${VERSION} for ${TARGET}"
+        echo "   URL: $URL"
+        curl -sSfL "$URL" -o "/tmp/${ARCHIVE}"
+
+        # Step 1: Verify Sigstore attestation
+        echo ""
+        echo "🔏 Verifying Sigstore attestation..."
+        if gh attestation verify "/tmp/${ARCHIVE}" --owner getzola; then
+          echo "✅ Sigstore attestation verified"
+        else
+          echo "::error::❌ Sigstore attestation verification FAILED"
+          rm "/tmp/${ARCHIVE}"
+          exit 1
+        fi
+
+        # Step 2: Verify SHA256 checksum (defense in depth, when available)
+        echo ""
+        echo "🔐 Verifying SHA256 checksum..."
+
+        # Set up auth header if GH_TOKEN is available
+        AUTH_HEADER=""
+        if [ -n "$GH_TOKEN" ]; then
+          AUTH_HEADER="Authorization: Bearer $GH_TOKEN"
+        fi
+
+        # Get asset API URL and then fetch digest
+        ASSET_API_URL=$(curl -sSfL \
+          ${AUTH_HEADER:+-H "$AUTH_HEADER"} \
+          -H "Accept: application/vnd.github+json" \
+          -H "X-GitHub-Api-Version: 2022-11-28" \
+          "https://api.github.com/repos/getzola/zola/releases/tags/v${VERSION}" | \
+          jq -r ".assets[] | select(.name == \"${ARCHIVE}\") | .url")
+
+        if [ -z "$ASSET_API_URL" ] || [ "$ASSET_API_URL" = "null" ]; then
+          echo "::error::Failed to find asset ${ARCHIVE} in release"
+          rm "/tmp/${ARCHIVE}"
+          exit 1
+        fi
+
+        EXPECTED_SHA=$(curl -sSfL \
+          ${AUTH_HEADER:+-H "$AUTH_HEADER"} \
+          -H "Accept: application/vnd.github+json" \
+          -H "X-GitHub-Api-Version: 2022-11-28" \
+          "$ASSET_API_URL" | \
+          jq -r '.digest // empty' | \
+          sed 's/sha256://')
+
+        if [ -n "$EXPECTED_SHA" ]; then
+          # Digest available - verify it
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            ACTUAL_SHA=$(shasum -a 256 "/tmp/${ARCHIVE}" | awk '{print $1}')
+          else
+            ACTUAL_SHA=$(sha256sum "/tmp/${ARCHIVE}" | awk '{print $1}')
+          fi
+
+          if [ "$EXPECTED_SHA" != "$ACTUAL_SHA" ]; then
+            echo "::error::❌ SHA256 checksum verification FAILED"
+            echo "::error::Expected: $EXPECTED_SHA"
+            echo "::error::Got:      $ACTUAL_SHA"
+            rm "/tmp/${ARCHIVE}"
+            exit 1
+          fi
+
+          echo "✅ SHA256 checksum verified"
+          echo "   Expected: $EXPECTED_SHA"
+          echo "   Actual:   $ACTUAL_SHA"
+        else
+          # Digest not available (releases before June 2025)
+          echo "⚠️  SHA256 digest not available in GitHub API for this release"
+          echo "   Relying on Sigstore attestation for verification"
+        fi
+
+        # Extract binary
+        echo ""
+        echo "📂 Extracting binary..."
+        mkdir -p "$HOME/.zola/bin"
+
+        if [ "$RUNNER_OS" = "Windows" ]; then
+          unzip -q "/tmp/${ARCHIVE}" -d "$HOME/.zola/bin"
+        else
+          tar xzf "/tmp/${ARCHIVE}" -C "$HOME/.zola/bin"
+          chmod +x "$HOME/.zola/bin/zola"
+        fi
+
+        rm "/tmp/${ARCHIVE}"
+        echo "✅ Zola binary installed"
+
+    - name: Add Zola to PATH
+      shell: bash
+      run: |
+        echo "$HOME/.zola/bin" >> $GITHUB_PATH
+
+    - name: Verify Zola installation
+      shell: bash
+      run: |
+        echo "🔍 Verifying installation..."
+        zola --version
+        echo "✅ Zola is ready"
+
+    - name: Build site
+      shell: bash
+      working-directory: ${{ github.workspace }}
+      run: |
+        ARGS=()
+
+        # Global flags come before the command
+        if [ -n "${{ inputs.root }}" ] && [ "${{ inputs.root }}" != "." ]; then
+          ARGS+=("--root" "${{ inputs.root }}")
+        fi
+
+        # Command
+        ARGS+=("build")
+
+        # Command-specific flags come after
+        if [ -n "${{ inputs.base_url }}" ]; then
+          ARGS+=("--base-url" "${{ inputs.base_url }}")
+        fi
+
+        if [ -n "${{ inputs.output_dir }}" ]; then
+          ARGS+=("--output-dir" "${{ inputs.output_dir }}")
+        fi
+
+        if [ "${{ inputs.drafts }}" = "true" ]; then
+          ARGS+=("--drafts")
+        fi
+
+        echo "🔨 Building site..."
+        echo "   Command: zola ${ARGS[*]}"
+        zola "${ARGS[@]}"
+        echo "✅ Build complete"
