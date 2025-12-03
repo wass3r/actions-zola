@@ -131,12 +131,25 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: First build (cache miss)
+      - name: Clear any existing Zola cache for this test run
+        run: |
+          rm -rf ~/.zola/bin
+          echo "Cleared any existing Zola installation"
+
+      - name: First build (should download and verify)
         uses: ./
         with:
           root: test-site
 
-      - name: Second build (cache hit)
+      - name: Verify binary was installed
+        run: |
+          if [ ! -f "$HOME/.zola/bin/zola" ]; then
+            echo "::error::Zola binary not found after first build"
+            exit 1
+          fi
+          echo "✅ Zola binary installed"
+
+      - name: Second build (should use cached binary)
         uses: ./
         with:
           root: test-site
