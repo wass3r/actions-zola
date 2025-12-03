@@ -29,13 +29,15 @@ jobs:
       - uses: wass3r/actions-zola@v2
         with:
           zola_version: v0.21.0
-          gh_token: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Deploy
         run: |
           # Your deployment logic
           # Built site is in ./public
 ```
+
+> [!NOTE]
+> Highly recommended to pin your actions-zola action and any action with digest for security.
 
 ## Inputs
 
