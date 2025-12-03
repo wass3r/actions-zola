@@ -124,7 +124,7 @@ jobs:
           drafts: true
 
   test-caching:
-    name: Test binary caching
+    name: Test binary caching (first run)
     runs-on: ubuntu-latest
 
     permissions:
@@ -179,7 +179,20 @@ jobs:
             echo "::error::Zola binary not found after first build"
             exit 1
           fi
-          echo "✅ Zola binary installed"
+          echo "✅ Zola binary installed and cached for next job"
+
+  test-caching-hit:
+    name: Test binary caching (cache hit)
+    runs-on: ubuntu-latest
+    needs: test-caching
+
+    env:
+      ZOLA_VERSION: v0.21.0
+
+    steps:
+      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+        with:
+          persist-credentials: false
 
       - name: Second build (cache hit expected)
         uses: ./
