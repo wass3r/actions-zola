@@ -28,7 +28,7 @@ jobs:
       
       - uses: wass3r/actions-zola@v2
         with:
-          zola_version: v0.21.0
+          zola_version: v0.22.1
       
       - name: Deploy
         run: |
@@ -43,7 +43,7 @@ jobs:
 
 | Input          | Description                               | Default        |
 | -------------- | ----------------------------------------- | -------------- |
-| `zola_version` | Zola version (v0.20.0+ required)          | `v0.21.0`      |
+| `zola_version` | Zola version (v0.20.0+ required)          | `v0.22.1`      |
 | `root`         | Root directory for Zola project           | `.`            |
 | `base_url`     | Override base URL from config.toml        |                |
 | `output_dir`   | Output directory for built site           |                |
