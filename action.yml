@@ -59,7 +59,7 @@ runs:
           echo "::error::Minimum version: v0.20.0"
           echo "::error::"
           echo "::error::Options:"
-          echo "::error::  1. Upgrade to Zola v0.21.0 (recommended)"
+          echo "::error::  1. Upgrade to Zola to the latest version (recommended)"
           echo "::error::  2. Use wass3r/actions-zola@v1 for older Zola versions"
           exit 1
         fi
