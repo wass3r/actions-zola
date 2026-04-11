@@ -72,7 +72,7 @@ For self-hosted runners, [install the GitHub CLI](https://github.com/cli/cli#ins
 > [!NOTE]
 > The `gh_token` input defaults to `github.token` and is used for:
 > - Sigstore attestation verification via `gh` CLI
-> - Fetching SHA256 checksums from GitHub API (for releases after June 202
+> - Fetching SHA256 checksums from GitHub API (for releases after June 2025)
 
 ### Legacy Versions
 

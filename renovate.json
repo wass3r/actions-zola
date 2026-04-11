@@ -24,7 +24,6 @@
         "/^README\\.md$/"
       ],
       "matchStrings": [
-        "## Quick Start[\\s\\S]*?zola_version: v(?<currentValue>\\d+\\.\\d+\\.\\d+)",
         "\\| `zola_version` \\|[^\\n]*\\| `v(?<currentValue>\\d+\\.\\d+\\.\\d+)`"
       ],
       "depNameTemplate": "getzola/zola",
