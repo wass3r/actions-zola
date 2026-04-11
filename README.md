@@ -81,7 +81,7 @@ Need Zola < v0.20.0? Use v1 of this action:
 ```yaml
 - uses: wass3r/actions-zola@v1
   with:
-    zola_version: v0.18.0
+    zola_version: v0.22.1
 ```
 
 ## Examples
