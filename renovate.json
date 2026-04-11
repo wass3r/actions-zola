@@ -11,12 +11,11 @@
         "/^action\\.yml$/"
       ],
       "matchStrings": [
-        "zola_version:\\n\\s+description:[^\\n]+\\n\\s+required: false\\n\\s+default: \"(?<currentValue>v\\d+\\.\\d+\\.\\d+)\""
+        "zola_version:\\n\\s+description:[^\\n]+\\n\\s+required: false\\n\\s+default: \"v(?<currentValue>\\d+\\.\\d+\\.\\d+)\""
       ],
       "depNameTemplate": "getzola/zola",
       "datasourceTemplate": "github-releases",
-      "versioningTemplate": "semver",
-      "extractVersionTemplate": "^v(?<version>.*)$"
+      "versioningTemplate": "semver"
     },
     {
       "customType": "regex",
@@ -25,13 +24,12 @@
         "/^README\\.md$/"
       ],
       "matchStrings": [
-        "## Quick Start[\\s\\S]*?zola_version: (?<currentValue>v\\d+\\.\\d+\\.\\d+)",
-        "\\| `zola_version` \\|[^\\n]*\\| `(?<currentValue>v\\d+\\.\\d+\\.\\d+)`"
+        "## Quick Start[\\s\\S]*?zola_version: v(?<currentValue>\\d+\\.\\d+\\.\\d+)",
+        "\\| `zola_version` \\|[^\\n]*\\| `v(?<currentValue>\\d+\\.\\d+\\.\\d+)`"
       ],
       "depNameTemplate": "getzola/zola",
       "datasourceTemplate": "github-releases",
-      "versioningTemplate": "semver",
-      "extractVersionTemplate": "^v(?<version>.*)$"
+      "versioningTemplate": "semver"
     },
     {
       "customType": "regex",
@@ -40,14 +38,13 @@
         "/^\\.github/workflows/test\\.yml$/"
       ],
       "matchStrings": [
-        "- (?<currentValue>v\\d+\\.\\d+\\.\\d+) # Default",
-        "zola_version: \\[v0\\.20\\.0, (?<currentValue>v\\d+\\.\\d+\\.\\d+)\\]",
-        "ZOLA_VERSION: (?<currentValue>v\\d+\\.\\d+\\.\\d+)"
+        "- v(?<currentValue>\\d+\\.\\d+\\.\\d+) # Default",
+        "zola_version: \\[v0\\.20\\.0, v(?<currentValue>\\d+\\.\\d+\\.\\d+)\\]",
+        "ZOLA_VERSION: v(?<currentValue>\\d+\\.\\d+\\.\\d+)"
       ],
       "depNameTemplate": "getzola/zola",
       "datasourceTemplate": "github-releases",
-      "versioningTemplate": "semver",
-      "extractVersionTemplate": "^v(?<version>.*)$"
+      "versioningTemplate": "semver"
     }
   ],
   "packageRules": [
