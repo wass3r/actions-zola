@@ -6,7 +6,7 @@ Build static sites with [Zola](https://www.getzola.org/) in GitHub Actions with 
 
 - **Secure by default**: All binaries verified via Sigstore attestation + SHA256 checksum
 - **Cross-platform**: Linux, macOS, Windows (x86_64 and ARM)
-- **Fast**: Automatic caching of verified binaries
+- **Fast**: Automatic caching of verified binaries (using `actions/cache`)
 - **Simple**: Minimal configuration required
 
 ## Quick Start
@@ -18,17 +18,18 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           persist-credentials: false
       
       - uses: wass3r/actions-zola@v2
-        with:
-          zola_version: v0.22.1
       
       - name: Deploy
         run: |
@@ -36,8 +37,11 @@ jobs:
           # Built site is in ./public
 ```
 
+> [!TIP]
+> For a complete example of building _and_ deploying to GitHub Pages, see the [Full GitHub Pages Example](#full-github-pages-example) below.
+
 > [!NOTE]
-> Highly recommended to pin your actions-zola action and any action with digest for security.
+> It is highly recommended to pin `wass3r/actions-zola` action (and any GitHub Action) with digest [for security](https://docs.github.com/en/actions/reference/security/secure-use?learn=getting_started#using-third-party-actions).
 
 ## Inputs
 
@@ -65,9 +69,10 @@ This action enforces the following security verification:
 
 For self-hosted runners, [install the GitHub CLI](https://github.com/cli/cli#installation).
 
-> **Note**: The `gh_token` input defaults to `github.token` and is used for:
+> [!NOTE]
+> The `gh_token` input defaults to `github.token` and is used for:
 > - Sigstore attestation verification via `gh` CLI
-> - Fetching SHA256 checksums from GitHub API (for releases after June 2025)
+> - Fetching SHA256 checksums from GitHub API (for releases after June 202
 
 ### Legacy Versions
 
@@ -105,6 +110,54 @@ Need Zola < v0.20.0? Use v1 of this action:
 - uses: wass3r/actions-zola@v2
   with:
     zola_version: v0.20.0
+```
+
+### Full GitHub Pages Example
+
+No extra token(s) needed. `wass3r/actions-zola` builds the site, `actions/upload-pages-artifact` uploads the built site as an artifact, and `actions/deploy-pages` deploys it to GitHub Pages from the artifact.
+
+```yaml
+name: Deploy site
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      
+      - uses: wass3r/actions-zola@v2
+      
+      - name: upload
+        id: deployment
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: public/
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write
+      pages: write
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: deploy to pages
+        id: deployment
+        uses: actions/deploy-pages@v5
 ```
 
 ## License
