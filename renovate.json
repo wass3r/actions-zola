@@ -7,8 +7,8 @@
     {
       "customType": "regex",
       "description": "Track default Zola version in action inputs",
-      "fileMatch": [
-        "^action\\.yml$"
+      "managerFilePatterns": [
+        "/^action\\.yml$/"
       ],
       "matchStrings": [
         "zola_version:\\n\\s+description:[^\\n]+\\n\\s+required: false\\n\\s+default: \"(?<currentValue>v\\d+\\.\\d+\\.\\d+)\""
@@ -21,8 +21,8 @@
     {
       "customType": "regex",
       "description": "Track current-version references in README",
-      "fileMatch": [
-        "^README\\.md$"
+      "managerFilePatterns": [
+        "/^README\\.md$/"
       ],
       "matchStrings": [
         "## Quick Start[\\s\\S]*?zola_version: (?<currentValue>v\\d+\\.\\d+\\.\\d+)",
@@ -36,8 +36,8 @@
     {
       "customType": "regex",
       "description": "Track default-tracking Zola versions in test workflow",
-      "fileMatch": [
-        "^\\.github/workflows/test\\.yml$"
+      "managerFilePatterns": [
+        "/^\\.github/workflows/test\\.yml$/"
       ],
       "matchStrings": [
         "- (?<currentValue>v\\d+\\.\\d+\\.\\d+) # Default",
