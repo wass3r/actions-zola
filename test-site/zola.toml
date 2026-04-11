@@ -4,5 +4,5 @@ compile_sass = false
 build_search_index = false
 
 [markdown.highlighting]
-theme = "gruvbox-dark"
+theme = "gruvbox-dark-hard"
 error_on_missing_language = true
