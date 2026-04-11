@@ -2,5 +2,64 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "config:recommended"
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Track default Zola version in action inputs",
+      "fileMatch": [
+        "^action\\.yml$"
+      ],
+      "matchStrings": [
+        "zola_version:\\n\\s+description:[^\\n]+\\n\\s+required: false\\n\\s+default: \"(?<currentValue>v\\d+\\.\\d+\\.\\d+)\""
+      ],
+      "depNameTemplate": "getzola/zola",
+      "datasourceTemplate": "github-releases",
+      "versioningTemplate": "semver",
+      "extractVersionTemplate": "^v(?<version>.*)$"
+    },
+    {
+      "customType": "regex",
+      "description": "Track current-version references in README",
+      "fileMatch": [
+        "^README\\.md$"
+      ],
+      "matchStrings": [
+        "## Quick Start[\\s\\S]*?zola_version: (?<currentValue>v\\d+\\.\\d+\\.\\d+)",
+        "\\| `zola_version` \\|[^\\n]*\\| `(?<currentValue>v\\d+\\.\\d+\\.\\d+)`"
+      ],
+      "depNameTemplate": "getzola/zola",
+      "datasourceTemplate": "github-releases",
+      "versioningTemplate": "semver",
+      "extractVersionTemplate": "^v(?<version>.*)$"
+    },
+    {
+      "customType": "regex",
+      "description": "Track default-tracking Zola versions in test workflow",
+      "fileMatch": [
+        "^\\.github/workflows/test\\.yml$"
+      ],
+      "matchStrings": [
+        "- (?<currentValue>v\\d+\\.\\d+\\.\\d+) # Default",
+        "zola_version: \\[v0\\.20\\.0, (?<currentValue>v\\d+\\.\\d+\\.\\d+)\\]",
+        "ZOLA_VERSION: (?<currentValue>v\\d+\\.\\d+\\.\\d+)"
+      ],
+      "depNameTemplate": "getzola/zola",
+      "datasourceTemplate": "github-releases",
+      "versioningTemplate": "semver",
+      "extractVersionTemplate": "^v(?<version>.*)$"
+    }
+  ],
+  "packageRules": [
+    {
+      "matchDatasources": [
+        "github-releases"
+      ],
+      "matchPackageNames": [
+        "getzola/zola"
+      ],
+      "groupName": "zola version references",
+      "automerge": false
+    }
   ]
 }
