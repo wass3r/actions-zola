@@ -21,9 +21,21 @@ inputs:
     description: "Output directory for the built site"
     required: false
   drafts:
-    description: "Include drafts when building (true/false)"
+    description: "Include drafts when checking/building"
     required: false
     default: "false"
+  check_links:
+    description: "Run 'zola check' before build to validate external links"
+    required: false
+    default: "false"
+  check_links_skip_external:
+    description: "When check_links=true, skip external link validation during check phase"
+    required: false
+    default: "false"
+  use_cache:
+    description: "Use actions/cache for the Zola binary"
+    required: false
+    default: "true"
   gh_token:
     description: "GitHub token for attestation verification and API access to get checksums"
     required: false
@@ -39,12 +51,31 @@ runs:
       run: |
         VERSION="${ZOLA_VERSION#v}"
 
+        # Validate input format before numeric comparison
+        if [ -z "$VERSION" ]; then
+          echo "::error::Invalid zola_version input: value is empty"
+          echo "::error::Expected format: vMAJOR.MINOR.PATCH (for example: v0.22.1)"
+          exit 1
+        fi
+
+        if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([+-].*)?$ ]]; then
+          echo "::error::Invalid zola_version input: '$ZOLA_VERSION'"
+          echo "::error::Expected format: vMAJOR.MINOR.PATCH (for example: v0.22.1)"
+          exit 1
+        fi
+
         # Parse semantic version components
         IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
 
         # Remove any pre-release or build metadata from PATCH
         PATCH="${PATCH%%-*}"
         PATCH="${PATCH%%+*}"
+
+        if ! [[ "$MAJOR" =~ ^[0-9]+$ && "$MINOR" =~ ^[0-9]+$ && "$PATCH" =~ ^[0-9]+$ ]]; then
+          echo "::error::Invalid zola_version input after parsing: '$ZOLA_VERSION'"
+          echo "::error::Expected numeric MAJOR.MINOR.PATCH components"
+          exit 1
+        fi
 
         # Check minimum version (v0.20.0)
         MIN_MAJOR=0
@@ -110,24 +141,26 @@ runs:
             ;;
         esac
 
-    - name: Cache Zola binary
+    - name: Cache Zola archive
       id: cache-zola
+      if: inputs.use_cache == 'true'
       uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
       with:
-        path: ~/.zola/bin
-        key: zola-${{ inputs.zola_version }}-${{ steps.platform.outputs.target }}-v2-verified
+        path: ~/.zola/cache
+        key: zola-${{ inputs.zola_version }}-${{ steps.platform.outputs.target }}-v3-archive
 
-    - name: Download and verify Zola
-      if: steps.cache-zola.outputs.cache-hit != 'true'
+    - name: Download Zola archive
+      if: inputs.use_cache != 'true' || steps.cache-zola.outputs.cache-hit != 'true'
       shell: bash
       env:
         ZOLA_VERSION: ${{ inputs.zola_version }}
         TARGET: ${{ steps.platform.outputs.target }}
-        GH_TOKEN: ${{ inputs.gh_token }}
       run: |
         set -e
 
         VERSION="${ZOLA_VERSION#v}"
+        ARCHIVE_DIR="$HOME/.zola/cache"
+        mkdir -p "$ARCHIVE_DIR"
 
         # Construct download URL
         if [ "$RUNNER_OS" = "Windows" ]; then
@@ -137,25 +170,51 @@ runs:
         fi
 
         URL="https://github.com/getzola/zola/releases/download/v${VERSION}/${ARCHIVE}"
+        ARCHIVE_PATH="$ARCHIVE_DIR/$ARCHIVE"
 
         echo "📦 Downloading Zola v${VERSION} for ${TARGET}"
         echo "   URL: $URL"
-        curl -sSfL "$URL" -o "/tmp/${ARCHIVE}"
+        curl -sSfL "$URL" -o "$ARCHIVE_PATH"
+        echo "✅ Archive downloaded to: $ARCHIVE_PATH"
+
+    - name: Verify Zola archive
+      shell: bash
+      env:
+        ZOLA_VERSION: ${{ inputs.zola_version }}
+        TARGET: ${{ steps.platform.outputs.target }}
+        GH_TOKEN: ${{ inputs.gh_token }}
+      run: |
+        set -e
+
+        VERSION="${ZOLA_VERSION#v}"
+        ARCHIVE_DIR="$HOME/.zola/cache"
+
+        if [ "$RUNNER_OS" = "Windows" ]; then
+          ARCHIVE="zola-v${VERSION}-${TARGET}.zip"
+        else
+          ARCHIVE="zola-v${VERSION}-${TARGET}.tar.gz"
+        fi
+
+        ARCHIVE_PATH="$ARCHIVE_DIR/$ARCHIVE"
+
+        if [ ! -f "$ARCHIVE_PATH" ]; then
+          echo "::error::Expected Zola archive not found: $ARCHIVE_PATH"
+          exit 1
+        fi
 
         # Step 1: Verify Sigstore attestation
         echo ""
-        echo "🔏 Verifying Sigstore attestation..."
-        if gh attestation verify "/tmp/${ARCHIVE}" --owner getzola; then
+        echo "🔏 Verifying Sigstore attestation (including cache hits)..."
+        if gh attestation verify "$ARCHIVE_PATH" --owner getzola; then
           echo "✅ Sigstore attestation verified"
         else
           echo "::error::❌ Sigstore attestation verification FAILED"
-          rm "/tmp/${ARCHIVE}"
           exit 1
         fi
 
         # Step 2: Verify SHA256 checksum (defense in depth, when available)
         echo ""
-        echo "🔐 Verifying SHA256 checksum..."
+        echo "🔐 Verifying SHA256 checksum (including cache hits)..."
 
         # Set up auth header if GH_TOKEN is available
         AUTH_HEADER=""
@@ -173,7 +232,6 @@ runs:
 
         if [ -z "$ASSET_API_URL" ] || [ "$ASSET_API_URL" = "null" ]; then
           echo "::error::Failed to find asset ${ARCHIVE} in release"
-          rm "/tmp/${ARCHIVE}"
           exit 1
         fi
 
@@ -188,16 +246,15 @@ runs:
         if [ -n "$EXPECTED_SHA" ]; then
           # Digest available - verify it
           if [ "$RUNNER_OS" = "macOS" ]; then
-            ACTUAL_SHA=$(shasum -a 256 "/tmp/${ARCHIVE}" | awk '{print $1}')
+            ACTUAL_SHA=$(shasum -a 256 "$ARCHIVE_PATH" | awk '{print $1}')
           else
-            ACTUAL_SHA=$(sha256sum "/tmp/${ARCHIVE}" | awk '{print $1}')
+            ACTUAL_SHA=$(sha256sum "$ARCHIVE_PATH" | awk '{print $1}')
           fi
 
           if [ "$EXPECTED_SHA" != "$ACTUAL_SHA" ]; then
             echo "::error::❌ SHA256 checksum verification FAILED"
             echo "::error::Expected: $EXPECTED_SHA"
             echo "::error::Got:      $ACTUAL_SHA"
-            rm "/tmp/${ARCHIVE}"
             exit 1
           fi
 
@@ -210,19 +267,37 @@ runs:
           echo "   Relying on Sigstore attestation for verification"
         fi
 
+    - name: Extract Zola binary
+      shell: bash
+      env:
+        ZOLA_VERSION: ${{ inputs.zola_version }}
+        TARGET: ${{ steps.platform.outputs.target }}
+      run: |
+        set -e
+
+        VERSION="${ZOLA_VERSION#v}"
+        ARCHIVE_DIR="$HOME/.zola/cache"
+
+        if [ "$RUNNER_OS" = "Windows" ]; then
+          ARCHIVE="zola-v${VERSION}-${TARGET}.zip"
+        else
+          ARCHIVE="zola-v${VERSION}-${TARGET}.tar.gz"
+        fi
+
+        ARCHIVE_PATH="$ARCHIVE_DIR/$ARCHIVE"
+
         # Extract binary
         echo ""
         echo "📂 Extracting binary..."
+        rm -rf "$HOME/.zola/bin"
         mkdir -p "$HOME/.zola/bin"
 
         if [ "$RUNNER_OS" = "Windows" ]; then
-          unzip -q "/tmp/${ARCHIVE}" -d "$HOME/.zola/bin"
+          unzip -q "$ARCHIVE_PATH" -d "$HOME/.zola/bin"
         else
-          tar xzf "/tmp/${ARCHIVE}" -C "$HOME/.zola/bin"
+          tar xzf "$ARCHIVE_PATH" -C "$HOME/.zola/bin"
           chmod +x "$HOME/.zola/bin/zola"
         fi
-
-        rm "/tmp/${ARCHIVE}"
         echo "✅ Zola binary installed"
 
     - name: Add Zola to PATH
@@ -236,6 +311,40 @@ runs:
         echo "🔍 Verifying installation..."
         zola --version
         echo "✅ Zola is ready"
+
+    - name: Check links (optional)
+      if: inputs.check_links == 'true'
+      shell: bash
+      working-directory: ${{ github.workspace }}
+      run: |
+        ARGS=()
+        SKIP_EXTERNAL_LINKS="${{ inputs.check_links_skip_external }}"
+
+        # Global flags come before the command
+        if [ -n "${{ inputs.root }}" ] && [ "${{ inputs.root }}" != "." ]; then
+          ARGS+=("--root" "${{ inputs.root }}")
+        fi
+
+        # Command
+        ARGS+=("check")
+
+        # Command-specific flags come after
+        if [ "$SKIP_EXTERNAL_LINKS" = "true" ]; then
+          ARGS+=("--skip-external-links")
+        fi
+
+        if [ "${{ inputs.drafts }}" = "true" ]; then
+          ARGS+=("--drafts")
+        fi
+
+        if [ "$SKIP_EXTERNAL_LINKS" = "true" ]; then
+          echo "🔎 Checking site (external link checks skipped)..."
+        else
+          echo "🔎 Checking site and external links..."
+        fi
+        echo "   Command: zola ${ARGS[*]}"
+        zola "${ARGS[@]}"
+        echo "✅ Link check complete"
 
     - name: Build site
       shell: bash

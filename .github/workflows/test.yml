@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test-version-validation:
     name: Test version validation
@@ -123,6 +127,25 @@ jobs:
           root: test-site
           drafts: true
 
+      - name: Test with check_links enabled
+        uses: ./
+        with:
+          root: test-site
+          check_links: true
+
+      - name: Test with check_links_skip_external enabled
+        uses: ./
+        with:
+          root: test-site
+          check_links: true
+          check_links_skip_external: true
+
+      - name: Test with cache disabled
+        uses: ./
+        with:
+          root: test-site
+          use_cache: false
+
   test-caching:
     name: Test binary caching (first run)
     runs-on: ubuntu-latest
@@ -162,7 +185,7 @@ jobs:
           esac
 
           # Use default version from action.yml
-          CACHE_KEY="zola-${ZOLA_VERSION}-${TARGET}-v2-verified"
+          CACHE_KEY="zola-${ZOLA_VERSION}-${TARGET}-v3-archive"
           echo "Attempting to delete cache: $CACHE_KEY"
 
           gh cache delete "$CACHE_KEY" --repo ${{ github.repository }} || echo "Cache not found or already deleted"

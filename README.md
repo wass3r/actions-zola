@@ -6,7 +6,7 @@ Build static sites with [Zola](https://www.getzola.org/) in GitHub Actions with 
 
 - **Secure by default**: All binaries verified via Sigstore attestation + SHA256 checksum
 - **Cross-platform**: Linux, macOS, Windows (x86_64 and ARM)
-- **Fast**: Automatic caching of verified binaries (using `actions/cache`)
+- **Fast**: Automatic caching of release archives with verification on every run (using `actions/cache`)
 - **Simple**: Minimal configuration required
 
 ## Quick Start
@@ -45,27 +45,27 @@ jobs:
 
 ## Inputs
 
-| Input          | Description                               | Default        |
-| -------------- | ----------------------------------------- | -------------- |
-| `zola_version` | Zola version (v0.20.0+ required)          | `v0.22.1`      |
-| `root`         | Root directory for Zola project           | `.`            |
-| `base_url`     | Override base URL from config.toml        |                |
-| `output_dir`   | Output directory for built site           |                |
-| `drafts`       | Include draft content                     | `false`        |
-| `gh_token`     | GitHub token for attestation verification | `github.token` |
+| Input                       | Description                                               | Default        |
+| --------------------------- | --------------------------------------------------------- | -------------- |
+| `zola_version`              | Zola version (v0.20.0+ required)                          | `v0.22.1`      |
+| `root`                      | Root directory for Zola project                           | `.`            |
+| `base_url`                  | Override base URL from config.toml (build only)           |                |
+| `output_dir`                | Output directory for built site (build only)              |                |
+| `drafts`                    | Include draft content (applies to check and build)        | `false`        |
+| `check_links`               | Run `zola check` before build (fails fast on check error) | `false`        |
+| `check_links_skip_external` | With `check_links`, skip external link validation         | `false`        |
+| `use_cache`                 | Use `actions/cache` for Zola release archives             | `true`         |
+| `gh_token`                  | GitHub token for attestation verification                 | `github.token` |
 
-## Security
+> [!NOTE]
+> None of the inputs are required.
 
-This action enforces the following security verification:
+## Requirements
 
-1. **Sigstore Attestation**: Cryptographically proves the binary was built by Zola's official CI from legitimate source code
-2. **SHA256 Checksum**: Verifies file integrity
-
-### Requirements
-
-- **Zola v0.20.0 or later**: Required for attestation support
-- **GitHub CLI (`gh`)**: Pre-installed on all GitHub-hosted runners
+- **Zola v0.20.0 or later**: Required for attestation support (defaults to latest stable)
+- **GitHub CLI (`gh`)**: Pre-installed on all GitHub-hosted runners (for attestation verification and checksum fetching)
 - **GitHub Token**: Automatically provided via `github.token` (can be overridden with `gh_token` input)
+- In the Pages settings of your repository (`Settings` -> `Pages`), the Source must be set to **GitHub Actions**
 
 For self-hosted runners, [install the GitHub CLI](https://github.com/cli/cli#installation).
 
@@ -83,6 +83,15 @@ Need Zola < v0.20.0? Use v1 of this action:
   with:
     zola_version: v0.18.0
 ```
+
+## Security
+
+This action enforces the following security verification:
+
+1. **Sigstore Attestation**: Cryptographically proves the binary was built by Zola's official CI from legitimate source code
+2. **SHA256 Checksum**: Verifies file integrity
+
+Cache restores are treated as untrusted until verification passes. On cache hits, the restored archive is re-verified before extraction and execution.
 
 ## Examples
 
@@ -104,6 +113,23 @@ Need Zola < v0.20.0? Use v1 of this action:
     drafts: true
 ```
 
+### Validate Links Before Build
+
+```yaml
+- uses: wass3r/actions-zola@v2
+  with:
+    check_links: true
+```
+
+### Validate Links But Skip External Links
+
+```yaml
+- uses: wass3r/actions-zola@v2
+  with:
+    check_links: true
+    check_links_skip_external: true
+```
+
 ### Specific Version
 
 ```yaml
@@ -112,12 +138,33 @@ Need Zola < v0.20.0? Use v1 of this action:
     zola_version: v0.20.0
 ```
 
+### Disable Cache (Always Re-download + Re-verify)
+
+```yaml
+- uses: wass3r/actions-zola@v2
+  with:
+    use_cache: false
+```
+
+### With Theme as Git Submodule
+
+Just edit the `actions/checkout` step to include `submodules: recursive`.
+
+```yaml
+- uses: actions/checkout@v6
+  with:
+    submodules: recursive
+    persist-credentials: false
+
+- uses: wass3r/actions-zola@v2
+```
+
 ### Full GitHub Pages Example
 
 No extra token(s) needed. `wass3r/actions-zola` builds the site, `actions/upload-pages-artifact` uploads the built site as an artifact, and `actions/deploy-pages` deploys it to GitHub Pages from the artifact.
 
 ```yaml
-name: Deploy site
+name: Build and deploy site
 
 on:
   push:
@@ -125,6 +172,10 @@ on:
 
 permissions:
   contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
