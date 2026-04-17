@@ -65,7 +65,6 @@ jobs:
 - **Zola v0.20.0 or later**: Required for attestation support (defaults to latest stable)
 - **GitHub CLI (`gh`)**: Pre-installed on all GitHub-hosted runners (for attestation verification and checksum fetching)
 - **GitHub Token**: Automatically provided via `github.token` (can be overridden with `gh_token` input)
-- In the Pages settings of your repository (`Settings` -> `Pages`), the Source must be set to **GitHub Actions**
 
 For self-hosted runners, [install the GitHub CLI](https://github.com/cli/cli#installation).
 
@@ -162,6 +161,9 @@ Just edit the `actions/checkout` step to include `submodules: recursive`.
 ### Full GitHub Pages Example
 
 No extra token(s) needed. `wass3r/actions-zola` builds the site, `actions/upload-pages-artifact` uploads the built site as an artifact, and `actions/deploy-pages` deploys it to GitHub Pages from the artifact.
+
+> [!IMPORTANT]
+> In the Pages settings of your repository (`Settings` -> `Pages`), the Source must be set to **GitHub Actions**
 
 ```yaml
 name: Build and deploy site
