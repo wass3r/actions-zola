@@ -22,7 +22,7 @@ jobs:
       matrix:
         version:
           - v0.20.0 # Minimum supported
-          - v0.22.1 # Default
+          - v0.23.2 # Default
           - v0.19.0 # Should fail
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -62,7 +62,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        zola_version: [v0.20.0, v0.22.1]
+        zola_version: [v0.20.0, v0.23.2]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -154,7 +154,7 @@ jobs:
       actions: write
 
     env:
-      ZOLA_VERSION: v0.22.1
+      ZOLA_VERSION: v0.23.2
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -210,7 +210,7 @@ jobs:
     needs: test-caching
 
     env:
-      ZOLA_VERSION: v0.22.1
+      ZOLA_VERSION: v0.23.2
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
