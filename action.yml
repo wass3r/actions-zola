@@ -9,7 +9,7 @@ inputs:
   zola_version:
     description: "Zola version to use (v0.20.0 or later required)"
     required: false
-    default: "v0.23.3"
+    default: "v0.23.4"
   root:
     description: "Root directory for the Zola project"
     required: false
